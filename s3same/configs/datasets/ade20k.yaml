@@ -1,0 +1,13 @@
+# Data location
+name: "ade20k"
+root: "data/ADEChallengeData2016"
+
+# Relative path to train/val/sam_sampling 
+train: "images/training"
+val: "images/validation"
+
+# CSV with SAM regions for train images
+sam_sampling: "sam_sampling.csv"
+
+# Train params
+max_epochs: 250
