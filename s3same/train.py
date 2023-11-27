@@ -129,6 +129,7 @@ if __name__ == "__main__":
         model_config["name"], dataset_config["name"], BATCH_SIZE, sam_sampling
     )
     # sub_dir = dataset_config["name"]
+    os.makedirs(LOGS_DIR, exist_ok=True)
     logger = pl.loggers.TensorBoardLogger(save_dir=LOGS_DIR, name="", sub_dir=exp_name)
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         dirpath=os.path.join(logger.log_dir, "checkpoints")
