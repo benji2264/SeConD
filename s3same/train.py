@@ -11,7 +11,9 @@ from datasets import ViewSamplingDataset
 from transforms import model_transforms
 
 torch.set_float32_matmul_precision("medium")
-device = "gpu"
+
+devices = torch.cuda.device_count() if torch.cuda.is_available() else 1
+accel = "gpu"
 
 BATCH_SIZE = 256
 
@@ -28,7 +30,7 @@ models = {
 data_path = "./data"
 
 val_sets = {
-    # name: [root_path, num_classes]
+    # name: [root_path, num_classes],
     "imagenette": [os.path.join(data_path, "imagenette"), 10],
     "stl10": [os.path.join(data_path, "stl10"), 10],
     "cifar10": [os.path.join(data_path, "cifar10"), 10],
@@ -138,7 +140,8 @@ if __name__ == "__main__":
     # Training
     trainer = pl.Trainer(
         max_epochs=max_epochs,
-        accelerator=device,
+        devices=devices,
+        accelerator=accel,
         default_root_dir=LOGS_DIR,
         logger=logger,
         callbacks=[checkpoint_callback] + knn_callbacks + linear_callbacks,
