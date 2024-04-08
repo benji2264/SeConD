@@ -7,48 +7,6 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.io import read_image
 from torchvision.transforms import v2
 
-LABEL_TO_ID = {
-  'unlabeled'           : 0,
-  'ego vehicle'         : 1,
-  'rectification border': 2,
-  'out of roi'          : 3,
-  'static'              : 4,
-  'dynamic'             : 5,
-  'ground'              : 6,
-  'road'                : 7,
-  'sidewalk'            : 8,
-  'parking'             : 9,
-  'rail track'          : 10,
-  'building'            : 11,
-  'wall'                : 12,
-  'fence'               : 13,
-  'guard rail'          : 14,
-  'bridge'              : 15,
-  'tunnel'              : 16,
-  'pole'                : 17,
-  'polegroup'           : 18,
-  'traffic light'       : 19,
-  'traffic sign'        : 20,
-  'vegetation'          : 21,
-  'terrain'             : 22,
-  'sky'                 : 23,
-  'person'              : 24,
-  'persongroup'         : 24,
-  'rider'               : 25,
-  'car'                 : 26,
-  'cargroup'            : 26,
-  'truck'               : 27,
-  'bus'                 : 28,
-  'caravan'             : 29,
-  'trailer'             : 30,
-  'train'               : 31,
-  'motorcycle'          : 32,
-  'motorcyclegroup'     : 32,
-  'bicycle'             : 33,
-  'bicyclegroup'        : 33,
-  'license plate'       : 34,
-}
-
 AVOID_LABELS = set(
     [
         "out of roi",
@@ -72,13 +30,10 @@ CROP_SIZE = [128, 256]
 
 class CityScapes(Dataset):
 
-    def __init__(self, path, type="train", transform=None) -> None:
-        self.annot_dir = os.path.join(path, "gtFine_trainvaltest", "gtFine", type)
-        # self.annot_dir = "/Users/benjaminmissaoui/Desktop/gt_s24/6476/s3same/s3same/datasets/cityscapes/"
+    def __init__(self, path, type="train") -> None:
+        self.annot_dir = os.path.join(path, "gtFine", type)
         self.img_dir = os.path.join(path, "leftImg8bit_trainvaltest", "leftImg8bit", type)
-        # self.img_dir = "/Users/benjaminmissaoui/Desktop/gt_s24/6476/s3same/s3same/datasets/cityscapes/leftImg8bit_trainvaltest/leftImg8bit/train"
         self.img_infos = self.load_infos()
-        self.transform = transform
 
     def load_infos(self):
         infos = {}
@@ -126,7 +81,7 @@ class CityScapes(Dataset):
 
                 # Store the informations about the 'best' crop
                 infos[idx] = {
-                    "label": LABEL_TO_ID[label],
+                    "label": label,
                     "corner1": corner1,
                     "corner2": corner2,
                     "path": os.path.join(
@@ -150,18 +105,13 @@ class CityScapes(Dataset):
         image = read_image(img_path)
         image = v2.functional.resized_crop(
             image, minY, minX, maxY - minY, maxX - minX, size=CROP_SIZE
-        ) / 255.0
-        if self.transform:
-            image = self.transform(image)
+        )
 
         return image, label
 
 
 if __name__ == "__main__":
-    path = "../datasets/cityscapes/"
-    # path = "../../Datasets/CityScapes"
-
-
+    path = "../../Datasets/CityScapes"
     cityscapes_train = CityScapes(path, "train")
     cityscapes_val = CityScapes(path, "val")
 
@@ -177,7 +127,5 @@ if __name__ == "__main__":
     img = np.transpose(train_features[n].squeeze(), axes=(1, 2, 0))
     label = train_labels[n]
     print(label)
-    print("unique labels = ", np.unique(list(train_labels)))
-    print("max(labels) = ", max(train_labels))
     plt.imshow(img)
     plt.show()
