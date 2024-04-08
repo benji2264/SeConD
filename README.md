@@ -1,3 +1,5 @@
+# Repo rewrite for Semantic Contrastive Distillation (SeConD)
+
 # S3SAMe: SAM-aided view sampling for contrastive learning
 
 ![Main Figure](assets/s3same_figure.png?raw=true "Title")
