@@ -1,15 +1,21 @@
 import os
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import v2
-import lightning as pl
-from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
-from lightning.pytorch.loggers import TensorBoardLogger
+
+import pytorch_lightning as pl
+from pytorch_lightning import LightningModule, Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
+from pytorch_lightning.loggers import TensorBoardLogger
+
 from torchvision.models import resnet18
 from torch.optim.lr_scheduler import OneCycleLR
 import torchmetrics
 import dataloader.cityscapes as cs
 import dataloader.coco as coco
+
+from models.backbone import load_backbone
 
 data_path = "/Users/benjaminmissaoui/Desktop/gt_s24/6476/s3same/s3same/datasets/"
 
@@ -18,6 +24,9 @@ MAX_EPOCHS = 5
 LR = 1e-3
 WEIGHT_DECAY = 1e-4
 
+DATASET = "coco"  # CHANGE ME! Choose dataset amongst keys in dict above
+BACKBONE = "resnet18"  # CHANGE ME! ['vits16', 'resnet18', 'resnet50']
+
 if torch.cuda.is_available():
     device = "cuda"
 elif torch.backends.mps.is_available():
@@ -25,26 +34,18 @@ elif torch.backends.mps.is_available():
 else:
     device = "cpu"
 
-# datasets = {
-#     # dataset: [/path/to/train, /path/to/val],
-#     "cityscapes": [
-#         "cityscapes"
-#     ]
-# }
-
 datasets = {
     # dataset_name: [Dataset, num_classes]
     "cityscapes": [cs.CityScapes, 35],
     "coco": [coco.COCO, 200],
 }
 
-dataset = "coco"  # CHANGE ME! Choose dataset amongst keys in dict above
 
-
-class ResNet18Module(pl.LightningModule):
-    def __init__(self, num_classes, learning_rate=1e-3, weight_decay=1e-4):
+class Teacher(LightningModule):
+    def __init__(self, model_name, num_classes, learning_rate=1e-3, weight_decay=1e-4):
         super().__init__()
-        self.model = resnet18(pretrained=False, num_classes=num_classes)
+        self.backbone, embed_size = load_backbone(model_name)
+        self.linear = nn.Linear(embed_size, num_classes)
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -53,7 +54,9 @@ class ResNet18Module(pl.LightningModule):
         )
 
     def forward(self, x):
-        return self.model(x)
+        features = self.backbone(x)
+        out = self.linear(features)
+        return out
 
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -67,7 +70,6 @@ class ResNet18Module(pl.LightningModule):
         logits = self(x)
         loss = self.criterion(logits, y)
         self.log("val_loss", loss)
-
         self.accuracy(logits, y)
         self.log("val_acc_step", self.accuracy)
 
@@ -110,8 +112,8 @@ if __name__ == "__main__":
         ]
     )
 
-    dataset_builder, num_classes = datasets[dataset]
-    path = os.path.join(data_path, dataset)
+    dataset_builder, num_classes = datasets[DATASET]
+    path = os.path.join(data_path, DATASET)
     train_dataset = dataset_builder(path=path, type="train", transform=train_transforms)
     val_dataset = dataset_builder(path=path, type="val", transform=val_transforms)
 
@@ -122,12 +124,17 @@ if __name__ == "__main__":
 
     # Replace num_classes with the number of classes in your dataset
     # num_classes = cs.NUM_CLASSES - len(cs.AVOID_LABELS)
-    model = ResNet18Module(
-        num_classes=num_classes, learning_rate=LR, weight_decay=WEIGHT_DECAY
+    model = Teacher(
+        model_name=BACKBONE,
+        num_classes=num_classes,
+        learning_rate=LR,
+        weight_decay=WEIGHT_DECAY,
     )
 
-    print(f"Running on {device}")
-    logger = TensorBoardLogger("tb_logs", name=f"{dataset}_r18_teacher_cs_v1")
+    print(f"Running on {device} device.")
+    logger = TensorBoardLogger(
+        "tb_logs", name=f"{DATASET}_{BACKBONE}_teacher_{BATCH_SIZE}bs_{MAX_EPOCHS}ep"
+    )
 
     trainer = pl.Trainer(
         accelerator=device,
@@ -140,5 +147,4 @@ if __name__ == "__main__":
         log_every_n_steps=5,
         logger=logger,
     )
-
     trainer.fit(model, train_dataloader, val_dataloader)
