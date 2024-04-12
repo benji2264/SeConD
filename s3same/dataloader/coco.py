@@ -180,10 +180,11 @@ ID_TO_LABEL = {
 
 class COCO(Dataset):
 
-    def __init__(self, path, type="train") -> None:
+    def __init__(self, path, type="train", transform=None) -> None:
         self.img_dir = os.path.join(path, type + "2017")
         self.json_dir = os.path.join(path, "annotations/panoptic_" + type + "2017.json")
         self.img_infos = self.load_infos()
+        self.transform = transform
 
     def load_infos(self):
         infos = {}
@@ -237,8 +238,11 @@ class COCO(Dataset):
 
         # Load the image, crop & resize it
         image = read_image(img_path)
-        image = v2.functional.resized_crop(image, y, x, height, width, size=CROP_SIZE)
+        image = v2.functional.resized_crop(image, y, x, height, width, size=CROP_SIZE, antialias=True) / 255.0
 
+        if self.transform:
+            image = self.transform(image)
+        
         # Handle the case of gray images
         if image.shape[0] == 1:
             print(img_path)
