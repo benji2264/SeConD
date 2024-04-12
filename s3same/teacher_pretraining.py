@@ -2,6 +2,13 @@ import os
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
+
+from torchvision import __version__ as torchvision_version
+from torchvision import disable_beta_transforms_warning
+if torchvision_version.startswith("0.15."):
+    # Can't install recent enough torchvision version on GT cluster
+    disable_beta_transforms_warning()
+
 from torchvision.transforms import v2
 
 import pytorch_lightning as pl
