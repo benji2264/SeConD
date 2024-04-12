@@ -101,7 +101,7 @@ class Teacher(LightningModule):
 if __name__ == "__main__":
     train_transforms = v2.Compose(
         [
-            v2.RandomResizedCrop(224),
+            v2.RandomResizedCrop(224, antialias=True),
             v2.RandomHorizontalFlip(),
             v2.RandomRotation(10),
             v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     # Normalization without augmentation for validation data
     val_transforms = v2.Compose(
         [
-            v2.Resize(224),
+            v2.Resize(224, antialias=True),
             v2.CenterCrop(224),
             v2.ToTensor(),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
