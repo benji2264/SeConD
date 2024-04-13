@@ -24,7 +24,8 @@ import dataloader.coco as coco
 
 from models.backbone import load_backbone
 
-data_path = "/Users/benjaminmissaoui/Desktop/gt_s24/6476/s3same/s3same/datasets/"
+# data_path = "/Users/benjaminmissaoui/Desktop/gt_s24/6476/s3same/s3same/datasets/"
+data_path = "/home/hice1/lmichalski3/scratch/datasets/data"
 
 BATCH_SIZE = 512
 MAX_EPOCHS = 5
