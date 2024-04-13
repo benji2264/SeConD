@@ -238,7 +238,7 @@ class COCO(Dataset):
 
         # Load the image, crop & resize it
         image = read_image(img_path)
-        image = v2.functional.resized_crop(image, y, x, height, width, size=CROP_SIZE, antialias=True) / 255.0
+        image = v2.functional.resized_crop(image, y, x, height, width, size=CROP_SIZE, antialias=True)
 
         if self.transform:
             image = self.transform(image)
