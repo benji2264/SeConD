@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 import dataloader.cityscapes as cs
 import dataloader.coco as coco
@@ -79,19 +79,24 @@ if __name__ == "__main__":
 
     if LEARNING_SIGNAL == "supervised":
         model = SupervisedClassifier(**params)
+        project_name = "pretrain"
+        run_name = f"{DATASET}_pretrain_{BACKBONE}_{MAX_EPOCHS}ep_{BATCH_SIZE}bs"
 
     elif LEARNING_SIGNAL == "distillation":
         teacher = SupervisedClassifier(**params)
         teacher.load_state_dict(TEACHER_CKPT)
         model = StudentClassifier(teacher_model=teacher, **params)
+        project_name = "baseline_distill"
+        run_name = f"{DATASET}_distill_{BACKBONE}_{MAX_EPOCHS}ep_{BATCH_SIZE}bs"
 
     elif LEARNING_SIGNAL == "contrastive":
         raise ValueError("Not implemented yet")
 
     # Train
-    logger = TensorBoardLogger(
-        "tb_logs", name=f"{DATASET}_{BACKBONE}_teacher_{BATCH_SIZE}bs_{MAX_EPOCHS}ep"
-    )
+    loggers = [
+        TensorBoardLogger("tb_logs", name=run_name),
+        WandbLogger(project=project_name, name=run_name),
+    ]
 
     trainer = pl.Trainer(
         accelerator=device,
@@ -102,6 +107,6 @@ if __name__ == "__main__":
             LearningRateMonitor(logging_interval="step"),
         ],
         log_every_n_steps=5,
-        logger=logger,
+        logger=loggers,
     )
     trainer.fit(model, train_dataloader, val_dataloader)
