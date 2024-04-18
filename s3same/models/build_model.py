@@ -98,7 +98,7 @@ class StudentClassifier(SupervisedClassifier):
         logits = self(x)
         
         with torch.no_grad():
-            pseudo_y = self.teacher_model(x).argmax(axis=1)
+            pseudo_y = self.teacher_model(x).argmax(axis=1) + 1
                 
         loss = self.criterion(logits, pseudo_y)
         self.log("train_loss", loss)
