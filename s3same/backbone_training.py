@@ -14,7 +14,7 @@ from utils import get_device, get_transforms
 DATA_PATH = "/Users/benjaminmissaoui/Desktop/gt_s24/6476/s3same/s3same/datasets/"
 
 BATCH_SIZE = 512
-MAX_EPOCHS = 5
+MAX_EPOCHS = 10
 LR = 1e-3
 WEIGHT_DECAY = 1e-4
 
@@ -100,7 +100,8 @@ if __name__ == "__main__":
 
     trainer = pl.Trainer(
         accelerator=device,
-        devices=1,
+        devices="auto",
+        strategy="auto",
         max_epochs=MAX_EPOCHS,
         callbacks=[
             ModelCheckpoint(monitor="val_loss"),

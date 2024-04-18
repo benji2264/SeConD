@@ -180,10 +180,12 @@ ID_TO_LABEL = {
 
 class COCO(Dataset):
 
-    def __init__(self, path, type="train") -> None:
+    def __init__(self, path, type="train", transform=None) -> None:
+        self.num_classes = 200
         self.img_dir = os.path.join(path, type + "2017")
         self.json_dir = os.path.join(path, "annotations/panoptic_" + type + "2017.json")
         self.img_infos = self.load_infos()
+        self.transform = transform
 
     def load_infos(self):
         infos = {}
@@ -218,7 +220,9 @@ class COCO(Dataset):
                 "y": y,
                 "width": width,
                 "height": height,
-                "path": os.path.join(self.img_dir, entry["file_name"].split(".")[0] + ".jpg"),
+                "path": os.path.join(
+                    self.img_dir, entry["file_name"].split(".")[0] + ".jpg"
+                ),
             }
             idx += 1
         return infos
@@ -237,7 +241,12 @@ class COCO(Dataset):
 
         # Load the image, crop & resize it
         image = read_image(img_path)
-        image = v2.functional.resized_crop(image, y, x, height, width, size=CROP_SIZE)
+        image = (
+            v2.functional.resized_crop(image, y, x, height, width, size=CROP_SIZE)
+            / 255.0
+        )
+        if self.transform:
+            image = self.transform(image)
 
         # Handle the case of gray images
         if image.shape[0] == 1:
@@ -248,7 +257,8 @@ class COCO(Dataset):
 
 
 if __name__ == "__main__":
-    path = "../../Datasets/COCO"
+    path = "../datasets/coco/"
+    # path = "../../Datasets/COCO"
     # coco_train = COCO(path, "train")
     coco_val = COCO(path, "val")
 
