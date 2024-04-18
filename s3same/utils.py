@@ -36,7 +36,7 @@ def get_transforms(
 
     train_transforms = v2.Compose(
         [
-            v2.RandomResizedCrop(input_size),
+            v2.RandomResizedCrop(input_size, antialias=True),
             v2.RandomHorizontalFlip(flip_prob),
             v2.RandomRotation(rot_range),
             v2.ColorJitter(brightness, contrast, saturation, hue),
@@ -46,9 +46,10 @@ def get_transforms(
 
     val_transforms = v2.Compose(
         [
-            v2.Resize(input_size),
+            v2.Resize(input_size, antialias=True),
             v2.CenterCrop(input_size),
-            v2.ToTensor(),
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
             normalize_transform,
         ]
     )

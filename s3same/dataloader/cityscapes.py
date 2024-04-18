@@ -157,7 +157,13 @@ class CityScapes(Dataset):
         image = read_image(img_path)
         image = (
             v2.functional.resized_crop(
-                image, minY, minX, maxY - minY, maxX - minX, size=CROP_SIZE
+                image,
+                minY,
+                minX,
+                maxY - minY,
+                maxX - minX,
+                size=CROP_SIZE,
+                antialias=True,
             )
             / 255.0
         )

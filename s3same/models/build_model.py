@@ -20,7 +20,7 @@ class GenericModel(LightningModule):
     @abstractmethod
     def forward(self, x):
         pass
-
+    
     def training_step(self, batch, batch_idx):
         x, y = batch
         logits = self(x)
@@ -32,10 +32,7 @@ class GenericModel(LightningModule):
         x, y = batch
         logits = self(x)
         loss = self.criterion(logits, y)
-        self.log("val_loss", loss)
-        for metric_name, metric_fn in self.metrics.items():
-            metric_val = metric_fn(logits, y)
-            self.log(metric_name, metric_val)
+        self.log("val_loss", loss, sync_dist=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -64,11 +61,8 @@ class SupervisedClassifier(GenericModel):
         self.flatten = nn.Flatten()
         self.linear = nn.Linear(self.embed_size, num_classes)
         self.criterion = torch.nn.CrossEntropyLoss()
-        self.metrics = {
-            "val_acc_step": torchmetrics.classification.Accuracy(
-                task="multiclass", num_classes=num_classes
-            ),
-        }
+        self.accuracy = torchmetrics.classification.Accuracy(task="multiclass", num_classes=num_classes)
+
 
     def forward(self, x):
         x = self.backbone(x)
@@ -76,6 +70,14 @@ class SupervisedClassifier(GenericModel):
         out = self.linear(features)
         return out
 
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        logits = self(x)
+        loss = self.criterion(logits, y)
+        self.log("val_loss", loss)
+        
+        self.accuracy(logits, y)
+        self.log('val_acc_step', self.accuracy, on_step=True, on_epoch=True, sync_dist=True)
 
 class StudentClassifier(SupervisedClassifier):
 

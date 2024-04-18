@@ -1,6 +1,7 @@
 import os
 from torch.utils.data import DataLoader
 
+import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
@@ -11,7 +12,9 @@ import dataloader.coco as coco
 from models.build_model import SupervisedClassifier, StudentClassifier
 from utils import get_device, get_transforms
 
-DATA_PATH = "/Users/benjaminmissaoui/Desktop/gt_s24/6476/s3same/s3same/datasets/"
+torch.set_float32_matmul_precision("medium")
+
+DATA_PATH = "/root/datasets/data/"
 
 BATCH_SIZE = 512
 MAX_EPOCHS = 10
@@ -24,7 +27,7 @@ INPUT_SIZE = 224
 
 # CHANGE ME! One of ['supervised', 'distillation', 'contrastive']
 LEARNING_SIGNAL = "supervised"
-TEACHER_CKPT = None  # Path to model checkpoint. Required if `LEARNING_SIGNAL` set to "distillation"
+TEACHER_CKPT = "/root/teacher_r18_coco_newname.pth"  # Path to model checkpoint. Required if `LEARNING_SIGNAL` set to "distillation"
 # Note: here the teacher and student are assumed to be the same architecture (self-distillation)
 
 if __name__ == "__main__":
@@ -60,18 +63,18 @@ if __name__ == "__main__":
         batch_size=BATCH_SIZE,
         drop_last=True,
         shuffle=True,
-        num_workers=os.cpu_count(),
+        num_workers=4,#os.cpu_count(),
     )
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=BATCH_SIZE,
         drop_last=False,
-        num_workers=os.cpu_count(),
+        num_workers=4,#os.cpu_count(),
     )
 
     # Create model
     params = {
-        "model_name": BACKBONE,
+        "backbone_name": BACKBONE,
         "num_classes": num_classes,
         "learning_rate": LR,
         "weight_decay": WEIGHT_DECAY,
@@ -85,6 +88,7 @@ if __name__ == "__main__":
     elif LEARNING_SIGNAL == "distillation":
         teacher = SupervisedClassifier(**params)
         teacher.load_state_dict(TEACHER_CKPT)
+        teacher.to(device)
         model = StudentClassifier(teacher_model=teacher, **params)
         project_name = "baseline_distill"
         run_name = f"{DATASET}_distill_{BACKBONE}_{MAX_EPOCHS}ep_{BATCH_SIZE}bs"
@@ -93,6 +97,7 @@ if __name__ == "__main__":
         raise ValueError("Not implemented yet")
 
     # Train
+    model.train_dataloader = lambda: train_dataloader
     loggers = [
         TensorBoardLogger("tb_logs", name=run_name),
         WandbLogger(project=project_name, name=run_name),
@@ -110,4 +115,5 @@ if __name__ == "__main__":
         log_every_n_steps=5,
         logger=loggers,
     )
+
     trainer.fit(model, train_dataloader, val_dataloader)
