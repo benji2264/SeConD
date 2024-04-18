@@ -74,7 +74,7 @@ class SupervisedClassifier(GenericModel):
         x, y = batch
         logits = self(x)
         loss = self.criterion(logits, y)
-        self.log("val_loss", loss)
+        self.log("val_loss", loss, sync_dist=True)
         
         self.accuracy(logits, y)
         self.log('val_acc_step', self.accuracy, on_step=True, on_epoch=True, sync_dist=True)
@@ -94,12 +94,13 @@ class StudentClassifier(SupervisedClassifier):
         self.teacher_model.eval()
 
     def training_step(self, batch, batch_idx):
-        x, _ = batch
+        x, y = batch
         logits = self(x)
-
+        # print(y.detach().cpu().)
         with torch.no_grad():
             pseudo_y = self.teacher_model(x)
 
-        loss = self.criterion(logits, pseudo_y)
+        # loss = self.criterion(logits, pseudo_y)
+        loss = self.criterion(logits, y)
         self.log("train_loss", loss)
         return loss
