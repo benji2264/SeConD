@@ -94,13 +94,12 @@ class StudentClassifier(SupervisedClassifier):
         self.teacher_model.eval()
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
+        x, _ = batch
         logits = self(x)
-        # print(y.detach().cpu().)
+        
         with torch.no_grad():
-            pseudo_y = self.teacher_model(x)
-
-        # loss = self.criterion(logits, pseudo_y)
-        loss = self.criterion(logits, y)
+            pseudo_y = self.teacher_model(x).argmax(axis=1)
+                
+        loss = self.criterion(logits, pseudo_y)
         self.log("train_loss", loss)
         return loss

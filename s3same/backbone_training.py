@@ -17,7 +17,7 @@ torch.set_float32_matmul_precision("medium")
 DATA_PATH = "/root/datasets/data/"
 
 BATCH_SIZE = 512
-MAX_EPOCHS = 10
+MAX_EPOCHS = 50
 LR = 1e-3
 WEIGHT_DECAY = 1e-4
 
@@ -92,7 +92,7 @@ if __name__ == "__main__":
         # teacher.to(device)
         model = StudentClassifier(teacher_model=teacher, **params)
         project_name = "baseline_distill"
-        run_name = f"DEBUG_{DATASET}_distill_{BACKBONE}_{MAX_EPOCHS}ep_{BATCH_SIZE}bs"
+        run_name = f"{DATASET}_distill_{BACKBONE}_{MAX_EPOCHS}ep_{BATCH_SIZE}bs"
 
     elif LEARNING_SIGNAL == "contrastive":
         raise ValueError("Not implemented yet")
