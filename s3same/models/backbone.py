@@ -14,13 +14,14 @@ backbones = {
 valid_names = list(backbones.keys())
 
 
-def load_backbone(model_name: str):
+def load_backbone(model_name: str, weights=None):
     """
     Returns randomly initialized backbone given model name,
     as well as the network's embedding size.
     Args:
         model_name: str, name of the model to load.
             Should be one of the keys of the backbones dict.
+        weights: str, path to model state_dict
     """
     assert (
         model_name in valid_names
@@ -37,5 +38,8 @@ def load_backbone(model_name: str):
     if model_name.startswith("vit"):
         model = load_model(pretrained=False)
         backbone = model
+
+    if weights is not None:
+        model.load_state_dict(weights)
 
     return backbone, embed_size
