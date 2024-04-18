@@ -77,7 +77,7 @@ class SupervisedClassifier(GenericModel):
         return out
 
 
-class StudentClassifier(GenericModel):
+class StudentClassifier(SupervisedClassifier):
 
     def __init__(
         self,
