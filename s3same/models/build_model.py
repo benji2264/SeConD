@@ -98,8 +98,31 @@ class StudentClassifier(SupervisedClassifier):
         logits = self(x)
         
         with torch.no_grad():
-            pseudo_y = self.teacher_model(x).argmax(axis=1) + 1
+            pseudo_y = self.teacher_model(x).argmax(axis=-1)
                 
         loss = self.criterion(logits, pseudo_y)
         self.log("train_loss", loss)
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        logits = self(x)
+
+        # Loss with real labels
+        loss = self.criterion(logits, y)
+        self.log("val_loss", loss, sync_dist=True)
+
+        # Loss with teacher pseudo labels
+        with torch.no_grad():
+            pseudo_y = self.teacher_model(x).argmax(axis=-1)
+            
+        loss = self.criterion(logits, pseudo_y)
+        self.log("val_loss_teacher", loss, sync_dist=True)
+
+        # Accuracy with real labels
+        self.accuracy(logits, y)
+        self.log('val_acc_step', self.accuracy, on_step=True, on_epoch=True, sync_dist=True)
+
+        # Accuracy with teacher pseudo labels
+        self.accuracy(logits, pseudo_y)
+        self.log('val_acc_step_teacher', self.accuracy, on_step=True, on_epoch=True, sync_dist=True)
