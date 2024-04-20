@@ -5,7 +5,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
 from torchvision.io import read_image
-from torchvision.transforms import v2
+from torchvision.transforms.v2.functional import resized_crop
+
+from utils import scale_bbox
+
 
 AVOID_LABELS = set(
     [
@@ -180,12 +183,17 @@ ID_TO_LABEL = {
 
 class COCO(Dataset):
 
-    def __init__(self, path, type="train", transform=None) -> None:
+    def __init__(
+        self, path, type="train", transform=None, scale_factor=None, nb_views=1
+    ) -> None:
+        assert nb_views > 0, f"`nb_views` should be at least 1, got {nb_views}"
         self.num_classes = 200
         self.img_dir = os.path.join(path, type + "2017")
         self.json_dir = os.path.join(path, "annotations/panoptic_" + type + "2017.json")
         self.img_infos = self.load_infos()
         self.transform = transform
+        self.scale_factor = scale_factor
+        self.nb_views = nb_views
 
     def load_infos(self):
         infos = {}
@@ -235,27 +243,36 @@ class COCO(Dataset):
         img_path = self.img_infos[idx]["path"]
         x = self.img_infos[idx]["x"]
         y = self.img_infos[idx]["y"]
-        width = self.img_infos[idx]["width"]
-        height = self.img_infos[idx]["height"]
+        w = self.img_infos[idx]["width"]
+        h = self.img_infos[idx]["height"]
         label = self.img_infos[idx]["label"]
 
-        # Load the image, crop & resize it
+        # Load the image
         image = read_image(img_path)
-        image = (
-            v2.functional.resized_crop(
-                image, y, x, height, width, size=CROP_SIZE, antialias=True
-            )
-            / 255.0
-        )
-        if self.transform:
-            image = self.transform(image)
+        img_h, img_w = image.shape[-2:]
 
         # Handle the case of gray images
         if image.shape[0] == 1:
-            print(img_path)
             image = image.repeat(3, 1, 1)
 
-        return image, label
+        # Scale bbox
+        if self.scale_factor is not None:
+            x, y, w, h = scale_bbox(
+                [x, y, w, h], scale=self.scale_factor, img_size=(img_h, img_w)
+            )
+
+        # Crop to bbox
+        image = resized_crop(image, y, x, h, w, size=CROP_SIZE, antialias=True) / 255.0
+
+        # Apply transforms
+        tr = self.transform if self.transform is not None else lambda x: x
+        images = [tr(image) for _ in range(self.nb_views)]
+        labels = [label] * self.nb_views
+
+        if self.nb_views == 1:
+            images, labels = images[0], labels[0]
+
+        return images, labels
 
 
 if __name__ == "__main__":
