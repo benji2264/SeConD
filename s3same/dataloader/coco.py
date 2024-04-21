@@ -5,7 +5,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
 from torchvision.io import read_image
-from torchvision.transforms import v2
+from torchvision.transforms.v2.functional import resized_crop
+
+from utils import scale_bbox
+
 
 AVOID_LABELS = set(
     [
@@ -180,12 +183,13 @@ ID_TO_LABEL = {
 
 class COCO(Dataset):
 
-    def __init__(self, path, type="train", transform=None) -> None:
+    def __init__(self, path, type="train", transform=None, scale_bboxes=None) -> None:
         self.num_classes = 200
         self.img_dir = os.path.join(path, type + "2017")
         self.json_dir = os.path.join(path, "annotations/panoptic_" + type + "2017.json")
         self.img_infos = self.load_infos()
         self.transform = transform
+        self.scale_bboxes = scale_bboxes
 
     def load_infos(self):
         infos = {}
@@ -235,25 +239,27 @@ class COCO(Dataset):
         img_path = self.img_infos[idx]["path"]
         x = self.img_infos[idx]["x"]
         y = self.img_infos[idx]["y"]
-        width = self.img_infos[idx]["width"]
-        height = self.img_infos[idx]["height"]
+        w = self.img_infos[idx]["width"]
+        h = self.img_infos[idx]["height"]
         label = self.img_infos[idx]["label"]
 
         # Load the image, crop & resize it
         image = read_image(img_path)
-        image = (
-            v2.functional.resized_crop(
-                image, y, x, height, width, size=CROP_SIZE, antialias=True
-            )
-            / 255.0
-        )
-        if self.transform:
-            image = self.transform(image)
+        img_h, img_w = image.shape[-2:]
 
         # Handle the case of gray images
         if image.shape[0] == 1:
             print(img_path)
             image = image.repeat(3, 1, 1)
+
+        if self.scale_bboxes is not None:
+            x, y, w, h = scale_bbox(
+                [x, y, w, h], scale=self.scale_bboxes, img_size=(img_h, img_w)
+            )
+
+        image = resized_crop(image, y, x, h, w, size=CROP_SIZE, antialias=True) / 255.0
+        if self.transform:
+            image = self.transform(image)
 
         return image, label
 
