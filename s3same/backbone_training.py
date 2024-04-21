@@ -14,16 +14,17 @@ from models.build_model import (
     StudentClassifier,
     StudentContrastive,
 )
+from callbacks import LinearProbingCallback
 from utils import get_device, get_transforms
 
 torch.set_float32_matmul_precision("medium")
 
 DATA_PATH = "/root/datasets/data/"
 
-# BATCH_SIZE = 512
-BATCH_SIZE = 128
-MAX_EPOCHS = 200
-# MAX_EPOCHS = 50
+BATCH_SIZE = 512
+# BATCH_SIZE = 128
+# MAX_EPOCHS = 100
+MAX_EPOCHS = 50
 LR = 1e-3
 WEIGHT_DECAY = 1e-4
 
@@ -32,7 +33,7 @@ BACKBONE = "resnet18"  # CHANGE ME! One of ['vits16', 'resnet18', 'resnet50']
 INPUT_SIZE = 224
 
 # CHANGE ME! One of ['supervised', 'distillation', 'contrastive']
-LEARNING_SIGNAL = "contrastive"
+LEARNING_SIGNAL = "supervised"
 
 # CHANGE ME! Path to model checkpoint. Required if `LEARNING_SIGNAL` set to "distillation"
 TEACHER_CKPT = "/root/SeConD/s3same/tb_logs/coco_pretrain_resnet18_50ep_512bs/version_0/checkpoints/epoch=49-step=5700.ckpt"
@@ -87,10 +88,31 @@ if __name__ == "__main__":
     }
 
     trainer_params = {"strategy": "auto"}
+    callbacks = []
     if LEARNING_SIGNAL == "supervised":
-        model = SupervisedClassifier(**params)
-        project_name = "pretrain"
+        # model = SupervisedClassifier(**params)
+        ckpt = "/root/SeConD/s3same/tb_logs/coco_contrastive_resnet18_100ep_128bs/version_5/checkpoints/epoch=99-step=45900.ckpt"
+        out_ckpt = "/root/SeConD/s3same/tb_logs/coco_contrastive_resnet18_100ep_128bs/version_5/checkpoints/contrastive_ep100_renamed.ckpt"
+
+        new_state_dict = {}
+        lck = torch.load(ckpt, map_location=torch.device("cpu"))
+        state_dict = lck["state_dict"]
+        prefix = "projection_head"
+        for name, mod in state_dict.items():
+            if name.startswith(prefix):
+                continue
+            new_state_dict[name] = mod
+        lck["state_dict"] = new_state_dict
+        torch.save(lck, out_ckpt)
+        
+        
+        model = SupervisedClassifier.load_from_checkpoint(out_ckpt, strict=False, **params)
+        # project_name = "pretrain"
+        project_name = "contrastive_retrain"
         run_name = f"{DATASET}_pretrain_{BACKBONE}_{MAX_EPOCHS}ep_{BATCH_SIZE}bs"
+        callbacks += [
+            ModelCheckpoint(monitor="val_loss")
+        ]
 
     elif LEARNING_SIGNAL == "distillation":
         teacher = SupervisedClassifier.load_from_checkpoint(TEACHER_CKPT, **params)
@@ -99,11 +121,31 @@ if __name__ == "__main__":
         model = StudentClassifier(teacher_model=teacher, **params)
         project_name = "distill"
         trainer_params["strategy"] = "ddp_find_unused_parameters_true"
+        callbacks += [
+            ModelCheckpoint(monitor="val_loss")
+        ]
+
 
     elif LEARNING_SIGNAL == "contrastive":
         inference_path = f"inference_{DATASET}.csv"
         model = StudentContrastive(region_proposals=inference_path, **params)
         project_name = "contrastive"
+        trainer_params["strategy"] = "ddp_find_unused_parameters_true"
+
+        # Linear Probing callback
+        linear_train_dataset = dataset_builder(path=path, type="train", transform=train_transforms)
+        linear_callback = LinearProbingCallback(
+            linear_train_dataset,
+            val_dataset,
+            num_classes=num_classes,
+            feature_dim=model.embed_size,
+            input_size=INPUT_SIZE,
+            max_epochs=60,
+            every_n_epochs=MAX_EPOCHS-1, # max_epochs - 1,  # only perform at the end
+        )
+        callbacks += [linear_callback, #ModelCheckpoint(monitor="linear_probe_val_top1")
+                     ]
+
         # raise ValueError("Not implemented yet")
 
     # Build dataloaders
@@ -112,13 +154,13 @@ if __name__ == "__main__":
         batch_size=BATCH_SIZE,
         drop_last=True,
         shuffle=True,
-        num_workers=8,  # os.cpu_count(),
+        num_workers=10,  # os.cpu_count(),
     )
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=BATCH_SIZE,
         drop_last=False,
-        num_workers=8,  # os.cpu_count(),
+        num_workers=10,  # os.cpu_count(),
     )
     # Train
     run_name = f"{DATASET}_{project_name}_{BACKBONE}_{MAX_EPOCHS}ep_{BATCH_SIZE}bs"
@@ -129,16 +171,18 @@ if __name__ == "__main__":
         WandbLogger(project=project_name, name=run_name),
     ]
 
+    callbacks += [
+        LearningRateMonitor(logging_interval="step"),
+        ModelCheckpoint() # save every epoch
+    ]
+
     trainer = pl.Trainer(
         accelerator=device,
         devices="auto",
         # strategy="auto",
         # strategy="ddp_find_unused_parameters_true",
         max_epochs=MAX_EPOCHS,
-        callbacks=[
-            ModelCheckpoint(monitor="val_loss"),
-            LearningRateMonitor(logging_interval="step"),
-        ],
+        callbacks=callbacks,
         log_every_n_steps=5,
         logger=loggers,
         **trainer_params,

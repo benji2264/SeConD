@@ -21,6 +21,7 @@ class GenericModel(LightningModule):
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.metrics = {}
+        self.backbone.train()
 
     @abstractmethod
     def forward(self, x):
@@ -160,7 +161,11 @@ class StudentContrastive(LightningModule):
         )
         self.temperature = temperature
         self.criterion = BatchedNTXentLoss(self.temperature, max_anchors=32)
+        # self.log("linear_probe_val_top1", 0)
 
+    # def on_train_epoch_start(self):
+    #     self.backbone.train()
+        
     def forward(self, x):
         x = self.backbone(x)
         features = self.flatten(x)
@@ -180,6 +185,10 @@ class StudentContrastive(LightningModule):
         self.log("train_loss", loss)
         return loss
 
+    def validation_step(self, batch, batch_idx):
+        # define val step for linear callback
+        pass
+    
     def configure_optimizers(self):
         optim = SGD(self.parameters(), lr=6e-2, momentum=0.9, weight_decay=5e-4)
         cosine_scheduler = CosineAnnealingLR(optim, self.trainer.max_epochs)

@@ -19,7 +19,8 @@ torch.set_float32_matmul_precision("medium")
 class EvalCallback(Callback):
     def __init__(
         self,
-        dataset_path: str,
+        train_dataset,
+        val_dataset,
         eval_model: nn.Module,
         eval_name: str,
         batch_size: int = 128,
@@ -51,6 +52,7 @@ class EvalCallback(Callback):
                 inside of the dataset path.
         """
         super().__init__()
+        print("INIT CALLBACK")
         self.batch_size = batch_size
         self.max_epochs = max_epochs
         self.every_n_epochs = every_n_epochs
@@ -60,17 +62,17 @@ class EvalCallback(Callback):
         self.accelerator = accelerator
         self.kwargs = kwargs
 
-        num_workers = os.cpu_count()
+        num_workers = min(10, os.cpu_count())
 
-        train_dataset = LightlyDataset(
-            input_dir=os.path.join(dataset_path, "train"),
-            transform=train_transform,
-        )
+        # train_dataset = LightlyDataset(
+        #     input_dir=os.path.join(dataset_path, "train"),
+        #     transform=train_transform,
+        # )
 
-        val_dataset = LightlyDataset(
-            input_dir=os.path.join(dataset_path, "val"),
-            transform=val_transform,
-        )
+        # val_dataset = LightlyDataset(
+        #     input_dir=os.path.join(dataset_path, "val"),
+        #     transform=val_transform,
+        # )
 
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset,
@@ -94,10 +96,20 @@ class EvalCallback(Callback):
         self.val_loader = val_dataloader
 
     def on_validation_epoch_end(self, trainer, model):
+        print("Val epoch end")
+        if self.epoch_count == 0:
+            # self.log(self.eval_name + "_val_top1", 0, sync_dist=True)
+            print("INITIAL LOG")
+            print("INITIAL LOG")
+            print("INITIAL LOG")
+            self.log("linear_probe_val_top1", 0.01, sync_dist=True)
+        
         self.epoch_count += 1
+        # log 0 for 1st epoch
         if self.epoch_count % self.every_n_epochs != 0:
             return
-
+            
+        print("YOOO CA COMENCE")
         # Instantiate eval model with kwargs
         eval_model = self.eval_model(model=model.backbone, **self.kwargs)
 
@@ -107,6 +119,7 @@ class EvalCallback(Callback):
             max_epochs=self.max_epochs,
             accelerator=self.accelerator,
             callbacks=[metric_callback],
+            strategy="ddp_find_unused_parameters_true",
         )
         eval_trainer.fit(
             model=eval_model,
@@ -117,17 +130,20 @@ class EvalCallback(Callback):
         self.log(
             self.eval_name + "_val_top1",
             max(metric_callback.val_metrics["val_top1"]),
+            sync_dist=True,
         )
         self.log(
             self.eval_name + "_val_top5",
             max(metric_callback.val_metrics["val_top5"]),
+            sync_dist=True,
         )
 
 
 class KNNCallback(EvalCallback):
     def __init__(
         self,
-        dataset_path: str,
+        train_dataset,
+        val_dataset,
         num_classes: int,
         n_neigh: int = 200,
         batch_size: int = 128,
@@ -151,7 +167,8 @@ class KNNCallback(EvalCallback):
         if exp_name:
             eval_name += "_" + exp_name
         super().__init__(
-            dataset_path,
+            train_dataset,
+            val_dataset,
             eval_model=KNNClassifier,
             eval_name=eval_name,
             batch_size=batch_size,
@@ -171,7 +188,8 @@ class KNNCallback(EvalCallback):
 class LinearProbingCallback(EvalCallback):
     def __init__(
         self,
-        dataset_path: str,
+        train_dataset,
+        val_dataset,
         num_classes: int,
         max_epochs: int = 90,
         feature_dim: int = 384,
@@ -207,7 +225,8 @@ class LinearProbingCallback(EvalCallback):
         if exp_name:
             eval_name += "_" + exp_name
         super().__init__(
-            dataset_path,
+            train_dataset,
+            val_dataset,
             eval_model=LinearClassifier,
             eval_name=eval_name,
             batch_size=batch_size,
